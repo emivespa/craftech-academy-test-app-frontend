@@ -8,6 +8,8 @@ build:
   image:
     name: gcr.io/kaniko-project/executor:debug
     entrypoint: [""]
+  rules:
+    - if: $CI_PIPELINE_SOURCE == 'push'
   script:
     - case "$CI_COMMIT_BRANCH" in (master) TAG="stable" ;; (dev) TAG="latest" ;; (*) exit 1 ;; esac
     - mkdir -p /kaniko/.docker
@@ -17,30 +19,24 @@ build:
       --dockerfile "${CI_PROJECT_DIR}/Dockerfile"
       --destination "${CI_REGISTRY_IMAGE}:$TAG"
     - echo "${CI_REGISTRY_IMAGE}:$TAG"
-  rules:
-    - if: $CI_PIPELINE_SOURCE == 'push'
 
 deploy:
   stage: deploy
   image: alpine/helm:3.10.1
-  script:
-    - case "$CI_COMMIT_BRANCH" in (master) TAG='stable'     ;; (dev) TAG='latest'     ;; (*) exit 1 ;; esac
-    - case "$CI_COMMIT_BRANCH" in (master) NAMESPACE='prd'  ;; (dev) NAMESPACE='dev'  ;; (*) exit 1 ;; esac
-    - helm upgrade --install -n $NAMESPACE test-app-frontend chart --set image.tag=$TAG
-  environment:
-    name: review/$CI_COMMIT_REF_SLUG
   rules:
     - if: $CI_PIPELINE_SOURCE == 'push' && $CI_COMMIT_BRANCH == 'master'
       when: manual
     - if: $CI_PIPELINE_SOURCE == 'push' && $CI_COMMIT_BRANCH == 'dev'
+  script:
+    - case "$CI_COMMIT_BRANCH" in (master) TAG='stable'     ;; (dev) TAG='latest'     ;; (*) exit 1 ;; esac
+    - case "$CI_COMMIT_BRANCH" in (master) NAMESPACE='prd'  ;; (dev) NAMESPACE='dev'  ;; (*) exit 1 ;; esac
+    - helm upgrade --install -n $NAMESPACE test-app-frontend chart --set image.tag=$TAG
 
 notify:
   stage: notify
   image: curlimages/curl:7.86.0 
-  script:
-    - case "$CI_COMMIT_BRANCH" in (master) TAG='stable' ;; (dev) TAG='latest' ;; (*) exit 1 ;; esac
-    - |
-      curl -X POST -H 'Content-type: application/json' --data '{"text":"Hello, World!"}' https://hooks.slack.com/services/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
   rules:
     - if: $CI_PIPELINE_SOURCE == 'push'
-
+  script:
+    - |
+      curl -X POST -H 'Content-type: application/json' --data '{"text":"Hello, frontend!"}' https://hooks.slack.com/services/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
