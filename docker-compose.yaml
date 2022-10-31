@@ -1,0 +1,14 @@
+version: '3.8'
+
+networks:
+  test-app-network:
+    driver: bridge # TODO: is bridge default?
+
+services:
+  test-app-frontend:
+    container_name: test-app-frontend
+    image: emivespa/test-app-frontend:latest
+    networks:
+      - test-app-network
+    ports:
+      - 3000:3000
