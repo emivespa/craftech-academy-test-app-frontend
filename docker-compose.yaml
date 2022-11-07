@@ -11,4 +11,4 @@ services:
     networks:
       - test-app-network
     ports:
-      - 3000:3000
+      - 3000:80
