@@ -1,21 +1,10 @@
-# TODO: npm install before copying directory?
-#	Don't know if it makes sense for a small app.
-
-FROM node:alpine
-
+FROM node:alpine AS builder
 WORKDIR /
-
 RUN mkdir app
-
 WORKDIR /app
-
 COPY . . 
-
 RUN npm install
 RUN npm run build
-RUN npm i -g serve
 
-EXPOSE 3000
-
-CMD [ "serve", "./build/." ]
-	# TODO: s/serve/nginx; using serve for now to save time.
+FROM nginx:alpine AS server
+COPY --from=builder /app/build/ /usr/share/nginx/html
