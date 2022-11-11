@@ -7,8 +7,9 @@ dotenv:
   stage: .pre
   artifacts:
     reports:
-      dotenv: .env
+      dotenv: build.env
   script:
+    - set -x
     - |
       case "$CI_COMMIT_BRANCH" in
         ('master')
@@ -20,9 +21,9 @@ dotenv:
           TAG='latest'
           ;;
         (*) exit 1 ;;
-      touch .env
-      printf %s\\n "NAMESPACE=${NAMESPACE}"  >>.env
-      printf %s\\n "TAG=${TAG}"              >>.env
+    - touch .env
+    - echo "NAMESPACE=${NAMESPACE}"  >> .env
+    - echo "TAG=${TAG}"              >> .env
   
 build:
   stage: build
