@@ -5,11 +5,13 @@ stages:
   
 build:
   stage: build
+  environment:
+    name: $CI_COMMIT_BRANCH
+  rules:
+    - if: $CI_PIPELINE_SOURCE == 'push'
   image:
     name: gcr.io/kaniko-project/executor:debug
     entrypoint: [""]
-  rules:
-    - if: $CI_PIPELINE_SOURCE == 'push'
   script:
     - case "$CI_COMMIT_BRANCH" in (master) TAG="stable" ;; (dev) TAG="latest" ;; (*) exit 1 ;; esac
     - mkdir -p /kaniko/.docker
@@ -23,11 +25,13 @@ build:
 
 deploy:
   stage: deploy
-  image: alpine/helm:3.10.1
+  environment:
+    name: $CI_COMMIT_BRANCH
   rules:
     - if: $CI_PIPELINE_SOURCE == 'push' && $CI_COMMIT_BRANCH == 'master'
       when: manual
     - if: $CI_PIPELINE_SOURCE == 'push' && $CI_COMMIT_BRANCH == 'dev'
+  image: alpine/helm:3.10.1
   script:
     - case "$CI_COMMIT_BRANCH" in (master) TAG='stable'     ;; (dev) TAG='latest'     ;; (*) exit 1 ;; esac
     - case "$CI_COMMIT_BRANCH" in (master) NAMESPACE='prd'  ;; (dev) NAMESPACE='dev'  ;; (*) exit 1 ;; esac
@@ -35,9 +39,11 @@ deploy:
 
 notify:
   stage: notify
-  image: curlimages/curl:7.86.0 
+  environment:
+    name: $CI_COMMIT_BRANCH
   rules:
     - if: $CI_PIPELINE_SOURCE == 'push'
+  image: curlimages/curl:7.86.0 
   script:
     - |
       curl -X POST -H 'Content-type: application/json' --data '{"text":"Hello, frontend!"}' https://hooks.slack.com/services/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
