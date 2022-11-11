@@ -2,41 +2,77 @@ stages:
   - build
   - deploy
   - notify
+
+#dotenv:
+#  stage: .pre
+#  environment:
+#    name: $CI_COMMIT_REF_SLUG
+#  artifacts:
+#    reports:
+#      dotenv: .env
+#  script:
+#    - case "$CI_COMMIT_BRANCH" in
+#        ('master')
+#          NAMESPACE=prd
+#          TAG=stable
+#          ;;
+#        ('dev')
+#          NAMESPACE=dev
+#          TAG=latest
+#          ;;
+#      esac
+#    - touch .env
+#    - echo "DOTENV_NAMESPACE=${NAMESPACE}"  >> .env
+#    - echo "DOTENV_TAG=${TAG}"              >> .env
+#  # Keep in mind there's no CI_COMMIT_BRANCH on tag builds! DOTENV_NAMESPACE AND
+#  # DOTENV_TAG will be empty.
   
 build:
   stage: build
+  environment:
+    name: $CI_COMMIT_REF_SLUG
+  rules:
+    - if: $CI_PIPELINE_SOURCE == 'push'
   image:
     name: gcr.io/kaniko-project/executor:debug
     entrypoint: [""]
-  rules:
-    - if: $CI_PIPELINE_SOURCE == 'push'
   script:
-    - case "$CI_COMMIT_BRANCH" in (master) TAG="stable" ;; (dev) TAG="latest" ;; (*) exit 1 ;; esac
+    - set -x
     - mkdir -p /kaniko/.docker
     - echo "{\"auths\":{\"${CI_REGISTRY}\":{\"auth\":\"$(printf "%s:%s" "${CI_REGISTRY_USER}" "${CI_REGISTRY_PASSWORD}" | base64 -w 0)\"}}}" > /kaniko/.docker/config.json # Cargo culted from docs.
-    - /kaniko/executor
+    - >
+      /kaniko/executor
+      --cache=true
       --context "${CI_PROJECT_DIR}"
       --dockerfile "${CI_PROJECT_DIR}/Dockerfile"
-      --destination "${CI_REGISTRY_IMAGE}:$TAG"
-    - echo "${CI_REGISTRY_IMAGE}:$TAG"
+      --destination "${CI_REGISTRY_IMAGE}:${CI_COMMIT_SHORT_SHA}"
+      --destination "${CI_REGISTRY_IMAGE}:latest"
+      ${CI_COMMIT_TAG+--destination "${CI_REGISTRY_IMAGE}:${CI_COMMIT_TAG}"}
 
 deploy:
   stage: deploy
-  image: alpine/helm:3.10.1
+  environment:
+    name: $CI_COMMIT_REF_SLUG
   rules:
+    # Checking for branch is important, otherwise this would run for tag builds
+    # where ENVIRONMENT_NAMESPACE AND ENVIRONMENT_TAG are empty.
     - if: $CI_PIPELINE_SOURCE == 'push' && $CI_COMMIT_BRANCH == 'master'
       when: manual
     - if: $CI_PIPELINE_SOURCE == 'push' && $CI_COMMIT_BRANCH == 'dev'
+  image: alpine/helm:3.10.1
   script:
-    - case "$CI_COMMIT_BRANCH" in (master) TAG='stable'     ;; (dev) TAG='latest'     ;; (*) exit 1 ;; esac
-    - case "$CI_COMMIT_BRANCH" in (master) NAMESPACE='prd'  ;; (dev) NAMESPACE='dev'  ;; (*) exit 1 ;; esac
-    - helm upgrade --install -n $NAMESPACE test-app-frontend chart --set image.tag=$TAG
+    - set -x
+    - test -z "$ENVIRONMENT_NAMESPACE" && exit 1
+    - helm upgrade --install -n $ENVIRONMENT_NAMESPACE test-app-frontend chart --set image.tag=$ENVIRONMENT_TAG
 
 notify:
   stage: notify
-  image: curlimages/curl:7.86.0 
+  environment:
+    name: $CI_COMMIT_REF_SLUG
   rules:
     - if: $CI_PIPELINE_SOURCE == 'push'
+  image: curlimages/curl:7.86.0 
   script:
+    - set -x
     - |
       curl -X POST -H 'Content-type: application/json' --data '{"text":"Hello, frontend!"}' https://hooks.slack.com/services/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
