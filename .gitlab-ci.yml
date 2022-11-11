@@ -9,9 +9,7 @@ dotenv:
     reports:
       dotenv: .env
   script:
-    - | 
-      set -x
-      case "$CI_COMMIT_BRANCH" in
+    - case "$CI_COMMIT_BRANCH" in
         ('master')
           NAMESPACE=prd
           TAG=stable
@@ -24,9 +22,9 @@ dotenv:
           exit 1
           ;;
       esac
-      touch .env
-      echo "NAMESPACE=${NAMESPACE}"  >> .env
-      echo "TAG=${TAG}"              >> .env
+    - touch .env
+    - echo "DOTENV_NAMESPACE=${NAMESPACE}"  >> .env
+    - echo "DOTENV_TAG=${TAG}"              >> .env
   
 build:
   stage: build
@@ -38,16 +36,13 @@ build:
     name: gcr.io/kaniko-project/executor:debug
     entrypoint: [""]
   script:
-    - env
-    - case "$CI_COMMIT_BRANCH" in (master) TAG="stable" ;; (dev) TAG="latest" ;; (*) exit 1 ;; esac
     - mkdir -p /kaniko/.docker
     - echo "{\"auths\":{\"${CI_REGISTRY}\":{\"auth\":\"$(printf "%s:%s" "${CI_REGISTRY_USER}" "${CI_REGISTRY_PASSWORD}" | base64 -w 0)\"}}}" > /kaniko/.docker/config.json # Cargo culted from docs.
     - /kaniko/executor
       --cache=true
       --context "${CI_PROJECT_DIR}"
       --dockerfile "${CI_PROJECT_DIR}/Dockerfile"
-      --destination "${CI_REGISTRY_IMAGE}:$TAG"
-    - echo "${CI_REGISTRY_IMAGE}:$TAG"
+      --destination "${CI_REGISTRY_IMAGE}:$DOTENV_TAG"
 
 deploy:
   stage: deploy
@@ -59,10 +54,7 @@ deploy:
     - if: $CI_PIPELINE_SOURCE == 'push' && $CI_COMMIT_BRANCH == 'dev'
   image: alpine/helm:3.10.1
   script:
-    - env
-    - case "$CI_COMMIT_BRANCH" in (master) TAG='stable'     ;; (dev) TAG='latest'     ;; (*) exit 1 ;; esac
-    - case "$CI_COMMIT_BRANCH" in (master) NAMESPACE='prd'  ;; (dev) NAMESPACE='dev'  ;; (*) exit 1 ;; esac
-    - helm upgrade --install -n $NAMESPACE test-app-frontend chart --set image.tag=$TAG
+    - helm upgrade --install -n $DOTENV_NAMESPACE test-app-frontend chart --set image.tag=$DOTENV_TAG
 
 notify:
   stage: notify
