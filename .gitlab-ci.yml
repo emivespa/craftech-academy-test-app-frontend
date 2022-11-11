@@ -5,6 +5,8 @@ stages:
 
 dotenv:
   stage: .pre
+  environment:
+    name: $CI_COMMIT_REF_SLUG
   artifacts:
     reports:
       dotenv: .env
@@ -18,40 +20,42 @@ dotenv:
           NAMESPACE=dev
           TAG=latest
           ;;
-        (*)
-          exit 1
-          ;;
       esac
     - touch .env
     - echo "DOTENV_NAMESPACE=${NAMESPACE}"  >> .env
     - echo "DOTENV_TAG=${TAG}"              >> .env
+  # Keep in mind there's no CI_COMMIT_BRANCH on tag builds! DOTENV_NAMESPACE AND
+  # DOTENV_TAG will be empty.
   
 build:
   stage: build
   environment:
-    name: $CI_COMMIT_BRANCH
+    name: $CI_COMMIT_REF_SLUG
   rules:
     - if: $CI_PIPELINE_SOURCE == 'push'
   image:
     name: gcr.io/kaniko-project/executor:debug
     entrypoint: [""]
   script:
+    - set -x
     - mkdir -p /kaniko/.docker
     - echo "{\"auths\":{\"${CI_REGISTRY}\":{\"auth\":\"$(printf "%s:%s" "${CI_REGISTRY_USER}" "${CI_REGISTRY_PASSWORD}" | base64 -w 0)\"}}}" > /kaniko/.docker/config.json # Cargo culted from docs.
-    - /kaniko/executor
+    - >
+      /kaniko/executor
       --cache=true
       --context "${CI_PROJECT_DIR}"
       --dockerfile "${CI_PROJECT_DIR}/Dockerfile"
       --destination "${CI_REGISTRY_IMAGE}:${CI_COMMIT_SHORT_SHA}"
       --destination "${CI_REGISTRY_IMAGE}:latest"
-      ${CI_BUILD_TAG+--destination "${CI_REGISTRY_IMAGE}:${CI_BUILD_TAG}"}
-      
+      ${CI_COMMIT_TAG+--destination "${CI_REGISTRY_IMAGE}:${CI_COMMIT_TAG}"}
 
 deploy:
   stage: deploy
   environment:
-    name: $CI_COMMIT_BRANCH
+    name: $CI_COMMIT_REF_SLUG
   rules:
+    # Checking for branch is important, otherwise this would run for tag builds
+    # where DOTENV_NAMESPACE AND DOTENV_TAG are empty.
     - if: $CI_PIPELINE_SOURCE == 'push' && $CI_COMMIT_BRANCH == 'master'
       when: manual
     - if: $CI_PIPELINE_SOURCE == 'push' && $CI_COMMIT_BRANCH == 'dev'
@@ -62,7 +66,7 @@ deploy:
 notify:
   stage: notify
   environment:
-    name: $CI_COMMIT_BRANCH
+    name: $CI_COMMIT_REF_SLUG
   rules:
     - if: $CI_PIPELINE_SOURCE == 'push'
   image: curlimages/curl:7.86.0 
