@@ -9,12 +9,24 @@ dotenv:
     reports:
       dotenv: .env
   script:
-    - set -x
-    - case "$CI_COMMIT_BRANCH" in (master) NAMESPACE=prd  ;; (dev) NAMESPACE=dev  ;; (*) exit 1 ;; esac
-    - case "$CI_COMMIT_BRANCH" in (master) TAG=stable     ;; (dev) TAG=latest     ;; (*) exit 1 ;; esac
-    - touch .env
-    - echo "NAMESPACE=${NAMESPACE}"  >> .env
-    - echo "TAG=${TAG}"              >> .env
+    - | 
+      set -x
+      case "$CI_COMMIT_BRANCH" in
+        ('master')
+          NAMESPACE=prd
+          TAG=stable
+          ;;
+        ('dev')
+          NAMESPACE=dev
+          TAG=latest
+          ;;
+        (*)
+          exit 1
+          ;;
+      esac
+      touch .env
+      echo "NAMESPACE=${NAMESPACE}"  >> .env
+      echo "TAG=${TAG}"              >> .env
   
 build:
   stage: build
