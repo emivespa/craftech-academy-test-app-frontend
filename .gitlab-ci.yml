@@ -43,7 +43,6 @@ deploy:
       helm upgrade --install
       -n $ENVIRONMENT_NAMESPACE
       test-app-frontend chart
-      ${ENVIRONMENT_TAG_OVERRIDE+--set image.tag=$ENVIRONMENT_TAG_OVERRIDE}
 
 notify:
   stage: notify
